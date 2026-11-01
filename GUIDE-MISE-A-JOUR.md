@@ -51,3 +51,20 @@ Aucune nouvelle variable Render n'est nécessaire.
 5. Actualise la page et vérifie que la pièce jointe reste visible dans la discussion.
 
 La dictée dépend du navigateur et de l'autorisation du microphone. Les fichiers sont stockés dans Supabase Storage et peuvent utiliser ton quota de stockage. Les pièces jointes ne sont pas encore analysées par l'IA.
+
+
+## Activation de l'analyse réelle des médias
+
+Dans Render > ton service NOVA > Environment, ajoute ou modifie :
+- `AI_VISION_MODEL` = `qwen/qwen3.8-27b`
+
+Conserve `AI_API_URL`, `AI_API_KEY`, `AI_MODEL`, `SUPABASE_URL` et `SUPABASE_ANON_KEY`.
+Le modèle vision utilise le même endpoint et la même clé Groq. Après sauvegarde, Render redéploie le site.
+
+Fonctions de cette version :
+- Images : envoi au modèle vision pour analyse.
+- PDF : extraction du texte dans le navigateur, puis transmission au modèle. Les PDF scannés sans couche texte ne seront pas lus par OCR.
+- Vidéos : extraction de trois images d'aperçu et analyse de ces images. Ce n'est pas une compréhension complète de la vidéo ni de son audio.
+- Dictée micro et lecture vocale : inchangées.
+
+Limites : 4 pièces jointes max, 20 Mo par fichier au stockage, jusqu'à 3 images transmises au modèle par message. Ne joins pas de documents personnels ou confidentiels.

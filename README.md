@@ -25,3 +25,6 @@ Le site utilise les variables d'environnement configurées sur Render. Voir `GUI
 - Ne mets jamais la clé Supabase `service_role` dans le navigateur ou dans GitHub.
 - Les valeurs `SUPABASE_URL` et `SUPABASE_ANON_KEY` côté Render doivent correspondre au projet Supabase.
 - L'historique est protégé par les règles RLS du fichier `supabase-schema.sql`.
+
+
+Analyse des médias : voir `GUIDE-MISE-A-JOUR.md` pour configurer `AI_VISION_MODEL` sur Render.

@@ -6,24 +6,24 @@ import { fileURLToPath } from "node:url";
 dotenv.config();
 const app = express();
 const root = path.dirname(fileURLToPath(import.meta.url));
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "24mb" }));
 app.use(express.static(path.join(root, "public")));
 
 const {
   AI_API_URL,
   AI_API_KEY,
   AI_MODEL,
+  AI_VISION_MODEL,
   SUPABASE_URL,
   SUPABASE_ANON_KEY
 } = process.env;
 
 const systemPrompt = `Tu es NOVA, un assistant IA indépendant, utile, patient et honnête.
 Réponds dans la langue de l'utilisateur. Explique clairement, structure les réponses
-et signale tes incertitudes. Ne prétends pas avoir effectué une action que tu n'as
-pas réellement effectuée. Les pièces jointes de NOVA sont conservées dans la discussion,
-mais leur contenu n'est pas transmis au modèle dans cette version. Si l'utilisateur
-te demande d'analyser une image, un PDF ou une vidéo jointe, explique clairement que
-tu ne peux pas encore lire son contenu au lieu de deviner.`;
+et signale tes incertitudes. Tu peux analyser les images transmises, ainsi que le texte
+extrait des PDF. Pour les vidéos, tu reçois quelques images extraites : décris uniquement
+ce que ces images permettent d'observer et précise que tu ne disposes pas de toute la vidéo
+ni de sa piste audio. Ne prétends jamais avoir lu ou vu un contenu qui ne t'a pas été transmis.`;
 
 app.get("/api/config", (_req, res) => {
   res.json({
@@ -69,8 +69,17 @@ app.post("/api/chat", requireUser, async (req, res) => {
     const maxMessages = Math.min(Math.max(Number(process.env.MAX_MESSAGES || 30), 2), 60);
     const incoming = Array.isArray(req.body?.messages) ? req.body.messages.slice(-maxMessages) : [];
     const messages = incoming
-      .filter(m => m && ["user", "assistant"].includes(m.role) && typeof m.content === "string")
-      .map(m => ({ role: m.role, content: m.content.slice(0, 12000) }));
+      .filter(m => m && ["user", "assistant"].includes(m.role) &&
+        (typeof m.content === "string" || (Array.isArray(m.content) && m.role === "user")))
+      .map(m => {
+        if (typeof m.content === "string") return { role: m.role, content: m.content.slice(0, 12000) };
+        const parts = m.content.slice(0, 8).filter(p =>
+          p && ((p.type === "text" && typeof p.text === "string") ||
+          (p.type === "image_url" && typeof p.image_url?.url === "string" &&
+           p.image_url.url.startsWith("data:image/") && p.image_url.url.length < 7_000_000))
+        );
+        return { role: m.role, content: parts };
+      });
 
     if (!messages.length || messages[messages.length - 1].role !== "user") {
       return res.status(400).json({ error: "Message invalide." });
@@ -79,11 +88,13 @@ app.post("/api/chat", requireUser, async (req, res) => {
     const headers = { "Content-Type": "application/json" };
     if (AI_API_KEY) headers.Authorization = `Bearer ${AI_API_KEY}`;
 
+    const hasImages = messages.some(m => Array.isArray(m.content) && m.content.some(p => p.type === "image_url"));
+    const selectedModel = hasImages ? (AI_VISION_MODEL || AI_MODEL) : AI_MODEL;
     const upstream = await fetch(AI_API_URL, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        model: AI_MODEL,
+        model: selectedModel,
         messages: [{ role: "system", content: systemPrompt }, ...messages],
         temperature: 0.7,
         stream: false

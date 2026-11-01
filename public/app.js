@@ -183,6 +183,63 @@ async function uploadSelectedFiles(c) {
   }
   return saved;
 }
+
+async function resizeImageDataUrl(file, maxSide = 1500) {
+  const source = await new Promise((resolve, reject) => {
+    const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file);
+  });
+  const img = await new Promise((resolve, reject) => {
+    const el = new Image(); el.onload = () => resolve(el); el.onerror = reject; el.src = source;
+  });
+  const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.width * scale)); canvas.height = Math.max(1, Math.round(img.height * scale));
+  canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+async function extractPdfText(file) {
+  const pdfjs = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  let text = "";
+  for (let pageNo = 1; pageNo <= Math.min(pdf.numPages, 35); pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const content = await page.getTextContent();
+    text += `\n[Page ${pageNo}]\n` + content.items.map(x => x.str || "").join(" ") + "\n";
+    if (text.length > 24000) break;
+  }
+  return text.slice(0, 24000);
+}
+async function extractVideoFrames(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const video = document.createElement("video"); video.preload = "metadata"; video.muted = true; video.src = url;
+    await new Promise((resolve, reject) => { video.onloadedmetadata = resolve; video.onerror = reject; });
+    const duration = video.duration || 0;
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error("Vidéo illisible.");
+    const times = [...new Set([Math.min(1, duration / 2), duration / 2, Math.max(0, duration - 1)])];
+    const frames = [];
+    for (const time of times) {
+      await new Promise((resolve, reject) => { video.onseeked = resolve; video.onerror = reject; video.currentTime = time; });
+      const scale = Math.min(1, 1024 / Math.max(video.videoWidth, video.videoHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale)); canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      frames.push({ time: Math.round(time), data: canvas.toDataURL("image/jpeg", 0.72) });
+    }
+    return frames;
+  } finally { URL.revokeObjectURL(url); }
+}
+async function prepareMediaForAI(files) {
+  const result = { images: [], pdfs: [], videos: [] };
+  for (const file of files) {
+    if (file.type.startsWith("image/")) result.images.push({ name: file.name, data: await resizeImageDataUrl(file) });
+    else if (file.type === "application/pdf") result.pdfs.push({ name: file.name, text: await extractPdfText(file) });
+    else if (file.type.startsWith("video/")) result.videos.push({ name: file.name, frames: await extractVideoFrames(file) });
+  }
+  return result;
+}
+
 async function send(text) {
   text = (text || "").trim(); if ((!text && !selectedFiles.length) || busy) return;
   let c = active();
@@ -198,8 +255,10 @@ async function send(text) {
       const created = await persistChat(c);
       if (!created) throw new Error("La discussion n'a pas pu être créée.");
     }
+    const filesForAnalysis = [...selectedFiles];
     const attachments = selectedFiles.length ? await uploadSelectedFiles(c) : [];
-    const userText = text || (attachments.length ? "Voici les fichiers que je joins à cette discussion." : "");
+    const mediaForAI = filesForAnalysis.length ? await prepareMediaForAI(filesForAnalysis) : { images: [], pdfs: [], videos: [] };
+    const userText = text || (attachments.length ? "Analyse les fichiers que je joins et explique leur contenu." : "");
     c.messages.push({ role: "user", content: userText, attachments });
     waiting.parentElement.parentElement.remove();
     addMessage("user", userText, false, attachments);
@@ -207,7 +266,19 @@ async function send(text) {
     $("prompt").value = ""; $("prompt").style.height = "auto"; clearSelectedFiles();
     await persistChat(c);
     const requestMessages = c.messages.map(m => ({ role: m.role, content: m.content }));
-    if (attachments.length) requestMessages[requestMessages.length - 1].content += "\n[Fichiers joints à cette discussion : " + attachments.map(a => a.name).join(", ") + ". Les fichiers sont stockés dans la conversation, mais leur contenu n'est pas transmis au modèle.]";
+    if (attachments.length) {
+      const parts = [{ type: "text", text: userText }];
+      for (const pdf of mediaForAI.pdfs) parts.push({ type: "text", text: `\n\nContenu extrait du PDF ${pdf.name} :\n${pdf.text || "[Aucun texte extractible : PDF probablement scanné ou protégé.]"}` });
+      for (const image of mediaForAI.images.slice(0, 3)) parts.push({ type: "image_url", image_url: { url: image.data } });
+      for (const video of mediaForAI.videos) {
+        parts.push({ type: "text", text: `Images extraites de la vidéo ${video.name} (temps en secondes : ${video.frames.map(f => f.time).join(", ")}). Analyse ces images comme des aperçus, pas comme une vidéo complète.` });
+        for (const frame of video.frames.slice(0, 3 - parts.filter(p => p.type === "image_url").length)) {
+          if (parts.filter(p => p.type === "image_url").length >= 3) break;
+          parts.push({ type: "image_url", image_url: { url: frame.data } });
+        }
+      }
+      requestMessages[requestMessages.length - 1] = { role: "user", content: parts };
+    }
     controller = new AbortController();
     const { data: sessionData } = await supabase.auth.getSession();
     const r = await fetch("/api/chat", {
