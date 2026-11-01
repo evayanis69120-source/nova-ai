@@ -9,24 +9,60 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(root, "public")));
 
+const {
+  AI_API_URL,
+  AI_API_KEY,
+  AI_MODEL,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+} = process.env;
+
 const systemPrompt = `Tu es NOVA, un assistant IA indépendant, utile, patient et honnête.
 Réponds dans la langue de l'utilisateur. Explique clairement, structure les réponses
 et signale tes incertitudes. Ne prétends pas avoir effectué une action que tu n'as
 pas réellement effectuée.`;
 
-app.get("/api/status", (_req, res) => {
-  res.json({ configured: Boolean(process.env.AI_API_URL && process.env.AI_MODEL) });
+app.get("/api/config", (_req, res) => {
+  res.json({
+    supabaseUrl: SUPABASE_URL || "",
+    supabaseAnonKey: SUPABASE_ANON_KEY || "",
+    aiConfigured: Boolean(AI_API_URL && AI_MODEL)
+  });
 });
 
-app.post("/api/chat", async (req, res) => {
+async function requireUser(req, res, next) {
   try {
-    const { AI_API_URL, AI_API_KEY, AI_MODEL } = process.env;
-    if (!AI_API_URL || !AI_MODEL) {
-      return res.status(503).json({
-        error: "Le moteur IA n'est pas configuré. Consulte le guide README pour le connecter."
-      });
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      return res.status(503).json({ error: "La connexion aux comptes n'est pas encore configurée." });
     }
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    if (!token) return res.status(401).json({ error: "Connecte-toi pour utiliser NOVA AI." });
 
+    const response = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/auth/v1/user`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) return res.status(401).json({ error: "Ta session a expiré. Reconnecte-toi." });
+    req.user = await response.json();
+    next();
+  } catch (error) {
+    console.error("Auth verification error:", error.message);
+    res.status(503).json({ error: "Impossible de vérifier la connexion pour le moment." });
+  }
+}
+
+app.get("/api/status", (_req, res) => {
+  res.json({
+    aiConfigured: Boolean(AI_API_URL && AI_MODEL),
+    accountsConfigured: Boolean(SUPABASE_URL && SUPABASE_ANON_KEY)
+  });
+});
+
+app.post("/api/chat", requireUser, async (req, res) => {
+  try {
+    if (!AI_API_URL || !AI_MODEL) {
+      return res.status(503).json({ error: "Le moteur IA n'est pas configuré." });
+    }
     const maxMessages = Math.min(Math.max(Number(process.env.MAX_MESSAGES || 30), 2), 60);
     const incoming = Array.isArray(req.body?.messages) ? req.body.messages.slice(-maxMessages) : [];
     const messages = incoming
@@ -57,14 +93,13 @@ app.post("/api/chat", async (req, res) => {
       console.error("AI provider error:", upstream.status, data);
       return res.status(502).json({ error: "Le moteur IA est momentanément indisponible. Réessaie plus tard." });
     }
-
     const reply = data.choices?.[0]?.message?.content;
     if (typeof reply !== "string" || !reply.trim()) {
       return res.status(502).json({ error: "Le moteur IA n'a pas renvoyé de réponse." });
     }
     res.json({ reply: reply.trim() });
   } catch (error) {
-    console.error(error);
+    console.error("Chat error:", error.message);
     const timeout = error?.name === "TimeoutError";
     res.status(timeout ? 504 : 500).json({
       error: timeout ? "La réponse prend trop de temps. Réessaie." : "Une erreur est survenue sur le serveur."
@@ -73,4 +108,4 @@ app.post("/api/chat", async (req, res) => {
 });
 
 const port = Number(process.env.PORT || 3000);
-app.listen(port, () => console.log(`NOVA AI écoute sur http://localhost:${port}`));
+app.listen(port, () => console.log(`NOVA AI écoute sur le port ${port}`));

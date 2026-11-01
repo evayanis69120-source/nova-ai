@@ -3,68 +3,93 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#111827">
-  <meta name="description" content="NOVA AI, ton espace pour apprendre, créer et réfléchir.">
+  <meta name="theme-color" content="#101322">
+  <meta name="description" content="NOVA AI, ton espace personnel pour apprendre, créer et réfléchir.">
   <title>NOVA AI — Ton assistant intelligent</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="app">
+<div class="auth-screen" id="authScreen">
+  <div class="auth-card">
+    <div class="brand centered"><div class="logo">✦</div><span>NOVA <b>AI</b></span></div>
+    <p class="eyebrow">TON ESPACE IA PERSONNEL</p>
+    <h1 id="authTitle">Bienvenue sur NOVA</h1>
+    <p class="auth-sub" id="authSubtitle">Connecte-toi pour retrouver tes discussions sur tes appareils.</p>
+    <form id="authForm">
+      <label id="nameLabel" class="hidden">Nom affiché<input id="displayName" autocomplete="name" maxlength="40" placeholder="Ton prénom ou pseudo"></label>
+      <label>Adresse e-mail<input id="email" type="email" autocomplete="email" required placeholder="toi@exemple.com"></label>
+      <label>Mot de passe<input id="password" type="password" autocomplete="current-password" minlength="8" required placeholder="8 caractères minimum"></label>
+      <button class="primary full" id="authSubmit" type="submit">Se connecter</button>
+    </form>
+    <p class="auth-error" id="authError" role="status"></p>
+    <p class="switch-auth"><span id="switchText">Pas encore de compte ?</span> <button id="switchAuth" class="text-button" type="button">Créer un compte</button></p>
+    <p class="tiny-note">Les comptes et les conversations sont gérés par ton espace Supabase. Ne partage jamais ton mot de passe.</p>
+  </div>
+</div>
+
+<div class="app hidden" id="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand"><div class="logo">✦</div><span>NOVA <b>AI</b></span></div>
     <button class="new-chat" id="newChat">＋ Nouvelle discussion</button>
-    <div class="side-label">TES DISCUSSIONS</div>
+    <div class="side-label">TON HISTORIQUE</div>
     <div class="history" id="history"></div>
     <div class="side-bottom">
-      <div class="status-dot"></div>
-      <div><b>NOVA AI</b><small id="connectionStatus">Vérification du moteur IA…</small></div>
-      <button class="settings" id="settingsBtn" title="Informations">ⓘ</button>
+      <div class="profile-avatar" id="avatar">N</div>
+      <div class="profile-meta"><b id="profileName">Mon compte</b><small id="profileEmail"></small></div>
+      <button class="icon-btn" id="profileBtn" title="Profil et paramètres">•••</button>
     </div>
   </aside>
 
   <main class="main">
     <header class="topbar">
       <button class="mobile-menu" id="menuBtn" aria-label="Ouvrir le menu">☰</button>
-      <div class="model-name"><span class="green-dot"></span> NOVA Assistant <span class="chevron">⌄</span></div>
-      <div class="top-right"><span class="free-pill">Accès gratuit</span></div>
+      <div class="model-name"><span class="green-dot"></span> NOVA Assistant <span class="model-tag">PERSONNEL</span></div>
+      <div class="top-right"><button class="icon-btn theme-btn" id="themeBtn" title="Changer le thème">☼</button></div>
     </header>
-
     <section class="chat-area" id="chatArea">
       <div class="welcome" id="welcome">
         <div class="welcome-mark">✦</div>
-        <h1>Bonjour ! Que pouvons-nous<br><em>imaginer ensemble ?</em></h1>
-        <p>Pose une question, demande une explication ou lance un projet.</p>
+        <p class="eyebrow">UN ESPACE POUR TES IDÉES</p>
+        <h1>Bonjour ! Que veux-tu<br><em>explorer aujourd'hui ?</em></h1>
+        <p>Apprends, imagine, organise tes projets ou pose simplement une question.</p>
         <div class="suggestions">
-          <button class="suggestion" data-prompt="Explique-moi un sujet difficile simplement."><span>✧</span><b>Apprendre</b><small>Explique-moi un sujet simplement</small></button>
-          <button class="suggestion" data-prompt="Aide-moi à créer un site web."><span>⌘</span><b>Créer un site</b><small>Construisons un projet ensemble</small></button>
-          <button class="suggestion" data-prompt="Aide-moi à écrire une histoire originale."><span>✎</span><b>Écrire</b><small>Imagine une histoire originale</small></button>
-          <button class="suggestion" data-prompt="Aide-moi à organiser ma semaine."><span>▦</span><b>S'organiser</b><small>Prépare un plan clair</small></button>
+          <button class="suggestion" data-prompt="Explique-moi un sujet difficile avec des exemples simples."><span>✧</span><b>Apprendre</b><small>Comprendre un sujet pas à pas</small></button>
+          <button class="suggestion" data-prompt="Aide-moi à imaginer et construire un site web."><span>⌘</span><b>Créer</b><small>Donner vie à une idée</small></button>
+          <button class="suggestion" data-prompt="Aide-moi à écrire une histoire originale."><span>✎</span><b>Écrire</b><small>Trouver les bons mots</small></button>
+          <button class="suggestion" data-prompt="Aide-moi à organiser mes tâches de la semaine."><span>▦</span><b>S'organiser</b><small>Faire un plan clair</small></button>
         </div>
+        <div class="feature-strip"><span>✦ Réponses IA</span><span>⌂ Historique synchronisé</span><span>◈ Espace personnel</span></div>
       </div>
       <div class="messages" id="messages" aria-live="polite"></div>
     </section>
-
     <footer class="composer-wrap">
       <form class="composer" id="chatForm">
         <textarea id="prompt" rows="1" placeholder="Écris ton message à NOVA..." aria-label="Ton message"></textarea>
         <div class="composer-bottom">
-          <span class="hint">Les réponses peuvent contenir des erreurs. Vérifie les informations importantes.</span>
+          <span class="hint">Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne</span>
           <button class="send" id="sendBtn" aria-label="Envoyer">↑</button>
+          <button class="stop hidden" id="stopBtn" type="button">■ Arrêter</button>
         </div>
       </form>
-      <p class="footer-note">NOVA AI · Un espace pour apprendre, créer et réfléchir.</p>
+      <p class="footer-note">NOVA AI peut se tromper. Vérifie les informations importantes.</p>
     </footer>
   </main>
 </div>
-<div class="modal-backdrop hidden" id="infoModal">
+
+<div class="modal-backdrop hidden" id="profileModal">
   <div class="modal">
-    <button class="modal-close" id="closeModal">×</button>
-    <h2>À propos de NOVA AI</h2>
-    <p>NOVA est une interface d'assistant qui se connecte au moteur IA configuré par son administrateur.</p>
-    <p>Les conversations sont enregistrées dans le stockage local de ce navigateur. Elles ne sont pas synchronisées entre appareils.</p>
-    <p>La gratuité dépend du moteur IA et de l'hébergement choisis. Un service public peut nécessiter des ressources payantes.</p>
+    <button class="modal-close" id="closeProfile">×</button>
+    <div class="profile-large" id="largeAvatar">N</div>
+    <h2 id="modalName">Mon profil</h2>
+    <p id="modalEmail" class="muted"></p>
+    <label>Nom affiché<input id="editName" maxlength="40" placeholder="Ton pseudo"></label>
+    <button class="primary full" id="saveProfile">Enregistrer le nom</button>
+    <div class="modal-divider"></div>
+    <button class="secondary full" id="signOut">Se déconnecter</button>
+    <p class="tiny-note">Tes discussions restent liées à ton compte. Déconnecte-toi sur un appareil partagé.</p>
   </div>
 </div>
-<script src="/app.js"></script>
+<div class="toast" id="toast" role="status"></div>
+<script type="module" src="/app.js"></script>
 </body>
 </html>
