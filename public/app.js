@@ -116,16 +116,77 @@ async function addAttachmentViews(container, attachments = []) {
   }
   container.append(wrap);
 }
+
+// Affiche le Markdown de NOVA proprement, sans interpréter de HTML fourni par l'IA.
+function renderFormattedText(target, source) {
+  target.replaceChildren();
+  const lines = String(source || "").replace(/\r\n?/g, "\n").split("\n");
+  let list = null, code = false, codeLines = [];
+  const inline = (parent, value) => {
+    const pattern = /(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\*[^*]+\*|_[^_]+_)/g;
+    let last = 0, match;
+    while ((match = pattern.exec(value))) {
+      parent.append(document.createTextNode(value.slice(last, match.index)));
+      const token = match[0], node = document.createElement(token.startsWith("**") || token.startsWith("__") ? "strong" : token.startsWith("`") ? "code" : "em");
+      node.textContent = token.startsWith("**") || token.startsWith("__") ? token.slice(2, -2) : token.slice(1, -1);
+      parent.append(node); last = pattern.lastIndex;
+    }
+    parent.append(document.createTextNode(value.slice(last)));
+  };
+  const closeList = () => { list = null; };
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      closeList();
+      if (code) {
+        const pre = document.createElement("pre"), block = document.createElement("code");
+        block.textContent = codeLines.join("\n"); pre.append(block); target.append(pre);
+        codeLines = []; code = false;
+      } else code = true;
+      continue;
+    }
+    if (code) { codeLines.push(line); continue; }
+    const heading = line.match(/^\s{0,3}(#{1,4})\s+(.+)$/);
+    const bullet = line.match(/^\s*[-*•]\s+(.+)$/);
+    const numbered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (heading) {
+      closeList();
+      const h = document.createElement("h" + Math.min(heading[1].length + 1, 5));
+      inline(h, heading[2].replace(/\s+#+\s*$/, "")); target.append(h);
+    } else if (bullet || numbered) {
+      const kind = bullet ? "ul" : "ol";
+      if (!list || list.tagName.toLowerCase() !== kind) {
+        closeList(); list = document.createElement(kind); target.append(list);
+      }
+      const item = document.createElement("li"); inline(item, (bullet || numbered)[1]); list.append(item);
+    } else if (/^\s*>\s?/.test(line)) {
+      closeList(); const quote = document.createElement("blockquote"); inline(quote, line.replace(/^\s*>\s?/, "")); target.append(quote);
+    } else if (!line.trim()) {
+      closeList();
+      // Un seul espacement visuel entre paragraphes, sans ajouter de texte parasite.
+    } else {
+      closeList(); const p = document.createElement("p"); inline(p, line); target.append(p);
+    }
+  }
+  if (code) {
+    const pre = document.createElement("pre"), block = document.createElement("code");
+    block.textContent = codeLines.join("\n"); pre.append(block); target.append(pre);
+  }
+}
+function plainText(source) {
+  return String(source || "").replace(/```[\s\S]*?```/g, " bloc de code ")
+    .replace(/^#{1,6}\s+/gm, "").replace(/\*\*|__|`|\*|_/g, "").replace(/^\s*[-*>]\s?/gm, "").trim();
+}
+
 function addMessage(role, text, withActions = false, attachments = []) {
   const row = document.createElement("div"); row.className = "message " + role;
   if (role === "assistant") { const av = document.createElement("div"); av.className = "avatar"; av.textContent = "✦"; row.append(av); }
   const content = document.createElement("div"); content.className = "message-content";
-  const bubble = document.createElement("div"); bubble.className = "bubble"; bubble.textContent = text; content.append(bubble);
+  const bubble = document.createElement("div"); bubble.className = "bubble"; renderFormattedText(bubble, text); content.append(bubble);
   if (attachments.length) addAttachmentViews(content, attachments);
   if (withActions) {
     const actions = document.createElement("div"); actions.className = "message-actions";
     const copy = document.createElement("button"); copy.textContent = "Copier"; copy.onclick = async () => { await navigator.clipboard.writeText(text); toast("Réponse copiée"); };
-    const speak = document.createElement("button"); speak.textContent = "🔊 Écouter"; speak.onclick = () => speakText(text);
+    const speak = document.createElement("button"); speak.textContent = "🔊 Écouter"; speak.onclick = () => speakText(plainText(text));
     actions.append(copy, speak); content.append(actions);
   }
   row.append(content); $("messages").append(row); row.scrollIntoView({ behavior: "smooth", block: "end" }); return bubble;
@@ -287,10 +348,10 @@ async function send(text) {
     });
     const d = await r.json(); if (!r.ok) throw new Error(d.error || "Service indisponible.");
     const assistantMessage = { role: "assistant", content: d.reply }; c.messages.push(assistantMessage);
-    waiting.textContent = d.reply; await persistChat(c);
+    renderFormattedText(waiting, d.reply); await persistChat(c);
     const actionRow = document.createElement("div"); actionRow.className = "message-actions";
     const copy = document.createElement("button"); copy.textContent = "Copier"; copy.onclick = async () => { await navigator.clipboard.writeText(d.reply); toast("Réponse copiée"); };
-    const speak = document.createElement("button"); speak.textContent = "🔊 Écouter"; speak.onclick = () => speakText(d.reply);
+    const speak = document.createElement("button"); speak.textContent = "🔊 Écouter"; speak.onclick = () => speakText(plainText(d.reply));
     actionRow.append(copy, speak); waiting.after(actionRow);
   } catch (err) {
     if (waiting.isConnected) waiting.textContent = err.name === "AbortError" ? "Génération arrêtée." : err.message;
