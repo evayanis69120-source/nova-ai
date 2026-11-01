@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="NOVA AI, ton espace pour apprendre, créer et réfléchir.">
+  <title>NOVA AI — Ton assistant intelligent</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="logo">✦</div><span>NOVA <b>AI</b></span></div>
+    <button class="new-chat" id="newChat">＋ Nouvelle discussion</button>
+    <div class="side-label">TES DISCUSSIONS</div>
+    <div class="history" id="history"></div>
+    <div class="side-bottom">
+      <div class="status-dot"></div>
+      <div><b>NOVA AI</b><small id="connectionStatus">Vérification du moteur IA…</small></div>
+      <button class="settings" id="settingsBtn" title="Informations">ⓘ</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="mobile-menu" id="menuBtn" aria-label="Ouvrir le menu">☰</button>
+      <div class="model-name"><span class="green-dot"></span> NOVA Assistant <span class="chevron">⌄</span></div>
+      <div class="top-right"><span class="free-pill">Accès gratuit</span></div>
+    </header>
+
+    <section class="chat-area" id="chatArea">
+      <div class="welcome" id="welcome">
+        <div class="welcome-mark">✦</div>
+        <h1>Bonjour ! Que pouvons-nous<br><em>imaginer ensemble ?</em></h1>
+        <p>Pose une question, demande une explication ou lance un projet.</p>
+        <div class="suggestions">
+          <button class="suggestion" data-prompt="Explique-moi un sujet difficile simplement."><span>✧</span><b>Apprendre</b><small>Explique-moi un sujet simplement</small></button>
+          <button class="suggestion" data-prompt="Aide-moi à créer un site web."><span>⌘</span><b>Créer un site</b><small>Construisons un projet ensemble</small></button>
+          <button class="suggestion" data-prompt="Aide-moi à écrire une histoire originale."><span>✎</span><b>Écrire</b><small>Imagine une histoire originale</small></button>
+          <button class="suggestion" data-prompt="Aide-moi à organiser ma semaine."><span>▦</span><b>S'organiser</b><small>Prépare un plan clair</small></button>
+        </div>
+      </div>
+      <div class="messages" id="messages" aria-live="polite"></div>
+    </section>
+
+    <footer class="composer-wrap">
+      <form class="composer" id="chatForm">
+        <textarea id="prompt" rows="1" placeholder="Écris ton message à NOVA..." aria-label="Ton message"></textarea>
+        <div class="composer-bottom">
+          <span class="hint">Les réponses peuvent contenir des erreurs. Vérifie les informations importantes.</span>
+          <button class="send" id="sendBtn" aria-label="Envoyer">↑</button>
+        </div>
+      </form>
+      <p class="footer-note">NOVA AI · Un espace pour apprendre, créer et réfléchir.</p>
+    </footer>
+  </main>
+</div>
+<div class="modal-backdrop hidden" id="infoModal">
+  <div class="modal">
+    <button class="modal-close" id="closeModal">×</button>
+    <h2>À propos de NOVA AI</h2>
+    <p>NOVA est une interface d'assistant qui se connecte au moteur IA configuré par son administrateur.</p>
+    <p>Les conversations sont enregistrées dans le stockage local de ce navigateur. Elles ne sont pas synchronisées entre appareils.</p>
+    <p>La gratuité dépend du moteur IA et de l'hébergement choisis. Un service public peut nécessiter des ressources payantes.</p>
+  </div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>
