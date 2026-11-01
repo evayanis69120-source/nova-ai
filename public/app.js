@@ -364,7 +364,14 @@ $("chatForm").addEventListener("submit", e => { e.preventDefault(); send($("prom
 $("prompt").addEventListener("input", () => { $("prompt").style.height = "auto"; $("prompt").style.height = Math.min($("prompt").scrollHeight, 150) + "px"; });
 $("prompt").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("prompt").value); } });
 document.querySelectorAll(".suggestion").forEach(b => b.addEventListener("click", () => send(b.dataset.prompt)));
-$("attachBtn").onclick = () => $("fileInput").click();
+document.querySelectorAll(".home-feature").forEach(b => b.addEventListener("click", () => {
+  if (b.dataset.feature === "image") { $("fileInput").accept = "image/jpeg,image/png,image/webp,image/gif"; $("fileInput").click(); }
+  else if (b.dataset.feature === "pdf") { $("fileInput").accept = "application/pdf"; $("fileInput").click(); }
+  else if (b.dataset.feature === "video") { $("fileInput").accept = "video/mp4,video/webm,video/quicktime"; $("fileInput").click(); }
+  else if (b.dataset.feature === "mic") $("micBtn").click();
+  else if (b.dataset.prompt) send(b.dataset.prompt);
+}));
+$("attachBtn").onclick = () => { $("fileInput").accept = "image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/webm,video/quicktime"; $("fileInput").click(); };
 $("newChat").onclick = newChat;
 $("menuBtn").onclick = () => $("sidebar").classList.toggle("open");
 $("stopBtn").onclick = () => controller?.abort();

@@ -41,9 +41,9 @@
       <span class="version-pill">BETA</span>
     </div>
     <button class="new-chat" id="newChat"><span class="plus-icon">＋</span><span>Nouvelle discussion</span><kbd>⌘ K</kbd></button>
-    <div class="side-label"><span>ESPACE PERSONNEL</span><span class="side-line"></span></div>
+    <div class="side-label"><span>MES CONVERSATIONS</span><span class="side-line"></span></div>
     <div class="history" id="history"></div>
-    <div class="sidebar-promo"><div class="promo-glow"></div><span class="promo-icon">✧</span><b>Un monde de possibilités</b><small>Chaque idée est un nouveau départ.</small></div>
+    <div class="sidebar-promo"><div class="promo-glow"></div><span class="promo-icon">♛</span><b>NOVA PREMIUM</b><small>Ton univers créatif, toujours ouvert.</small></div>
     <div class="side-bottom">
       <div class="profile-avatar" id="avatar">N</div>
       <div class="profile-meta"><b id="profileName">Mon compte</b><small id="profileEmail"></small></div>
@@ -58,18 +58,39 @@
     </header>
 
     <section class="chat-area" id="chatArea">
-      <div class="welcome" id="welcome">
-        <div class="hero-symbol"><div class="hero-ring ring-one"></div><div class="hero-ring ring-two"></div><div class="hero-core">✦</div></div>
-        <div class="eyebrow"><span></span> TON ASSISTANT INTELLIGENT <span></span></div>
-        <h1>L'avenir commence<br><em>avec une idée.</em></h1>
-        <p class="welcome-copy">Explore. Imagine. Crée. NOVA est là pour donner de l'élan à tes projets.</p>
-        <div class="suggestions">
-          <button class="suggestion" data-prompt="Explique-moi un sujet difficile avec des exemples simples."><span class="suggestion-icon icon-learn">✧</span><span class="suggestion-copy"><b>Explorer un sujet</b><small>Apprendre quelque chose de nouveau</small></span><span class="suggestion-arrow">↗</span></button>
-          <button class="suggestion" data-prompt="Aide-moi à imaginer et construire un site web."><span class="suggestion-icon icon-create">⌘</span><span class="suggestion-copy"><b>Créer un projet</b><small>Transformer une idée en réalité</small></span><span class="suggestion-arrow">↗</span></button>
-          <button class="suggestion" data-prompt="Aide-moi à écrire une histoire originale."><span class="suggestion-icon icon-write">✎</span><span class="suggestion-copy"><b>Écrire et imaginer</b><small>Inventer, raconter, partager</small></span><span class="suggestion-arrow">↗</span></button>
-          <button class="suggestion" data-prompt="Aide-moi à organiser mes tâches de la semaine."><span class="suggestion-icon icon-plan">▦</span><span class="suggestion-copy"><b>Organiser mes idées</b><small>Construire un plan clair</small></span><span class="suggestion-arrow">↗</span></button>
+      <div class="welcome nova-home" id="welcome">
+        <div class="home-welcome-pill"><span>✦</span> BIENVENUE SUR NOVA AI <span>✦</span><small>Ton univers intelligent commence ici</small></div>
+        <div class="home-hero">
+          <div class="hero-copy">
+            <div class="hero-crown">♛</div>
+            <h1>NOVA <em>AI</em></h1>
+            <div class="hero-motto">EXPLORE <i>•</i> CRÉE <i>•</i> APPRENDS <i>•</i> RÊVE</div>
+            <p>Ton intelligence artificielle, sans limites.</p>
+          </div>
+          <div class="hero-orb orb-a"></div><div class="hero-orb orb-b"></div><div class="hero-starfield">✦　·　✧　　　✦　　·　✧</div>
         </div>
-        <div class="welcome-foot"><span><i class="mini-dot"></i> IA prête à répondre</span><span>✧ Tes conversations sont privées</span></div>
+        <div class="home-feature-grid">
+          <button class="home-feature" data-prompt="Aide-moi à réfléchir à une idée et transforme-la en plan concret."><span>✧</span><b>Discussion intelligente</b><small>Pose toutes tes questions</small></button>
+          <button class="home-feature" data-feature="image"><span>▧</span><b>Analyse d'images</b><small>Comprends tes images</small></button>
+          <button class="home-feature" data-feature="pdf"><span>▤</span><b>Lecture de PDF</b><small>Explore tes documents</small></button>
+          <button class="home-feature" data-feature="mic"><span>♬</span><b>Dictée vocale</b><small>Parle, NOVA t'écoute</small></button>
+          <button class="home-feature" data-feature="video"><span>▷</span><b>Analyse vidéo</b><small>Explore tes vidéos</small></button>
+          <button class="home-feature" data-prompt="Lis ta réponse à voix haute lorsque tu auras répondu."><span>◖))</span><b>Réponses audio</b><small>Écoute les réponses</small></button>
+        </div>
+        <div class="home-lower">
+          <section class="prompt-zone">
+            <div class="home-section-title"><span>✦</span> Suggestions pour toi <small>Des idées pour commencer</small></div>
+            <div class="prompt-grid">
+              <button class="suggestion" data-prompt="Explique-moi les étoiles en 3 points."><span class="suggestion-emoji">💡</span><span class="suggestion-copy"><b>Explique-moi les étoiles</b><small>En trois points simples</small></span><span class="suggestion-arrow">↗</span></button>
+              <button class="suggestion" data-prompt="Imagine une image incroyable d'une ville futuriste dans l'espace."><span class="suggestion-emoji">🎨</span><span class="suggestion-copy"><b>Imagine une création</b><small>Une idée venue du futur</small></span><span class="suggestion-arrow">↗</span></button>
+              <button class="suggestion" data-prompt="Écris un petit jeu Python pour débutant et explique comment il fonctionne."><span class="suggestion-emoji">⌘</span><span class="suggestion-copy"><b>Crée un mini-projet</b><small>Découvre le code simplement</small></span><span class="suggestion-arrow">↗</span></button>
+              <button class="suggestion" data-prompt="Propose-moi cinq destinations de voyage étonnantes et explique pourquoi les visiter."><span class="suggestion-emoji">🌍</span><span class="suggestion-copy"><b>Évasion et découvertes</b><small>Trouve une destination rêvée</small></span><span class="suggestion-arrow">↗</span></button>
+              <button class="suggestion" data-prompt="Quels sont les bienfaits du sport pour la santé ?"><span class="suggestion-emoji">💜</span><span class="suggestion-copy"><b>Apprendre autrement</b><small>Explore un nouveau sujet</small></span><span class="suggestion-arrow">↗</span></button>
+              <button class="suggestion" data-prompt="Résume ce texte en quelques lignes : "><span class="suggestion-emoji">📚</span><span class="suggestion-copy"><b>Résumer un texte</b><small>Va à l'essentiel</small></span><span class="suggestion-arrow">↗</span></button>
+            </div>
+          </section>
+          <aside class="home-whats-new"><div class="whats-title">✦ Nouveautés <span>PREMIUM</span></div><p>✓ Analyse d'images</p><p>✓ Documents PDF</p><p>✓ Dictée et lecture vocales</p><p>✓ Discussions synchronisées</p><small>Ton espace. Tes idées. Ton NOVA.</small></aside>
+        </div>
       </div>
       <div class="messages" id="messages" aria-live="polite"></div>
     </section>

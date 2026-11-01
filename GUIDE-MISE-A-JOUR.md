@@ -68,3 +68,7 @@ Fonctions de cette version :
 - Dictée micro et lecture vocale : inchangées.
 
 Limites : 4 pièces jointes max, 20 Mo par fichier au stockage, jusqu'à 3 images transmises au modèle par message. Ne joins pas de documents personnels ou confidentiels.
+
+
+## Mise à jour NOVA GALAXIE
+Cette version ajoute une page d’accueil cosmique, des cartes de fonctions et des suggestions interactives. Remplace le contenu du dépôt GitHub par les fichiers de cette archive, puis attends le déploiement Render. Aucun nouveau SQL ni variable Render n’est nécessaire.
