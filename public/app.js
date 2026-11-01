@@ -4,11 +4,15 @@ const $ = id => document.getElementById(id);
 const config = await fetch("/api/config").then(r => r.json()).catch(() => ({}));
 const authScreen = $("authScreen"), app = $("app"), authForm = $("authForm");
 let supabase = null, user = null, chats = [], activeId = null, busy = false, controller = null;
-let authMode = "login";
+let authMode = "login", selectedFiles = [], recognition = null, recording = false;
+const MEDIA_BUCKET = "nova-media";
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_FILES = 4;
+const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "video/mp4", "video/webm", "video/quicktime"]);
 
 function toast(message) {
   const t = $("toast"); t.textContent = message; t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2600);
+  setTimeout(() => t.classList.remove("show"), 3000);
 }
 function setAuthMode(mode) {
   authMode = mode;
@@ -42,9 +46,8 @@ authForm.addEventListener("submit", async e => {
       const displayName = $("displayName").value.trim() || email.split("@")[0];
       const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName } } });
       if (error) throw error;
-      if (!data.session) {
-        $("authError").textContent = "Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.";
-      } else await enterApp(data.user);
+      if (!data.session) $("authError").textContent = "Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.";
+      else await enterApp(data.user);
     } else {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -58,10 +61,8 @@ async function enterApp(currentUser) {
   user = currentUser; authScreen.classList.add("hidden"); app.classList.remove("hidden");
   const name = user.user_metadata?.display_name || user.email.split("@")[0];
   $("profileName").textContent = name; $("profileEmail").textContent = user.email;
-  $("avatar").textContent = name.charAt(0).toUpperCase();
-  $("largeAvatar").textContent = name.charAt(0).toUpperCase();
-  $("modalName").textContent = name; $("modalEmail").textContent = user.email;
-  $("editName").value = name;
+  $("avatar").textContent = name.charAt(0).toUpperCase(); $("largeAvatar").textContent = name.charAt(0).toUpperCase();
+  $("modalName").textContent = name; $("modalEmail").textContent = user.email; $("editName").value = name;
   await loadChats();
 }
 async function loadChats() {
@@ -79,8 +80,11 @@ function renderHistory() {
     const del = document.createElement("button"); del.className = "history-delete"; del.textContent = "×"; del.title = "Supprimer";
     del.onclick = async () => {
       if (!confirm("Supprimer cette discussion ?")) return;
+      const mediaPaths = (c.messages || []).flatMap(m => (m.attachments || []).map(a => a.path)).filter(Boolean);
+      if (mediaPaths.length) await supabase.storage.from(MEDIA_BUCKET).remove(mediaPaths);
       const { error } = await supabase.from("conversations").delete().eq("id", c.id);
       if (error) return toast(error.message);
+      // Les fichiers du bucket restent privés ; ils peuvent être supprimés depuis le stockage Supabase.
       chats = chats.filter(x => x.id !== c.id);
       if (activeId === c.id) newChat(); else renderHistory();
     };
@@ -88,27 +92,53 @@ function renderHistory() {
   });
 }
 function active() { return chats.find(c => c.id === activeId); }
-function addMessage(role, text, withActions = false) {
+function safeText(value) { return String(value || "").replace(/[<>]/g, ""); }
+async function addAttachmentViews(container, attachments = []) {
+  if (!attachments.length) return;
+  const wrap = document.createElement("div"); wrap.className = "message-attachments";
+  for (const file of attachments) {
+    const card = document.createElement("div"); card.className = "attached-file";
+    const { data, error } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(file.path, 3600);
+    if (error || !data?.signedUrl) {
+      card.textContent = `📎 ${file.name} · aperçu indisponible`;
+    } else if (file.type?.startsWith("image/")) {
+      const img = document.createElement("img"); img.src = data.signedUrl; img.alt = file.name; img.loading = "lazy"; img.className = "attached-image";
+      img.onclick = () => window.open(data.signedUrl, "_blank", "noopener"); card.append(img);
+      const label = document.createElement("small"); label.textContent = file.name; card.append(label);
+    } else {
+      const link = document.createElement("a"); link.href = data.signedUrl; link.target = "_blank"; link.rel = "noopener noreferrer";
+      link.textContent = `${file.type?.startsWith("video/") ? "🎬" : "📄"} ${file.name}`; card.append(link);
+      if (file.type?.startsWith("video/")) {
+        const video = document.createElement("video"); video.src = data.signedUrl; video.controls = true; video.preload = "metadata"; card.append(video);
+      }
+    }
+    wrap.append(card);
+  }
+  container.append(wrap);
+}
+function addMessage(role, text, withActions = false, attachments = []) {
   const row = document.createElement("div"); row.className = "message " + role;
   if (role === "assistant") { const av = document.createElement("div"); av.className = "avatar"; av.textContent = "✦"; row.append(av); }
   const content = document.createElement("div"); content.className = "message-content";
   const bubble = document.createElement("div"); bubble.className = "bubble"; bubble.textContent = text; content.append(bubble);
+  if (attachments.length) addAttachmentViews(content, attachments);
   if (withActions) {
     const actions = document.createElement("div"); actions.className = "message-actions";
     const copy = document.createElement("button"); copy.textContent = "Copier"; copy.onclick = async () => { await navigator.clipboard.writeText(text); toast("Réponse copiée"); };
-    actions.append(copy); content.append(actions);
+    const speak = document.createElement("button"); speak.textContent = "🔊 Écouter"; speak.onclick = () => speakText(text);
+    actions.append(copy, speak); content.append(actions);
   }
   row.append(content); $("messages").append(row); row.scrollIntoView({ behavior: "smooth", block: "end" }); return bubble;
 }
 function openChat(id) {
   activeId = id; $("messages").replaceChildren(); const c = active();
   $("welcome").hidden = !!c?.messages?.length;
-  if (c) (c.messages || []).forEach(m => addMessage(m.role, m.content, m.role === "assistant"));
+  if (c) (c.messages || []).forEach(m => addMessage(m.role, m.content, m.role === "assistant", m.attachments || []));
   renderHistory(); $("sidebar").classList.remove("open");
 }
 function newChat() {
   activeId = null; $("messages").replaceChildren(); $("welcome").hidden = false; renderHistory();
-  $("prompt").focus(); $("sidebar").classList.remove("open");
+  $("prompt").focus(); $("sidebar").classList.remove("open"); clearSelectedFiles();
 }
 async function persistChat(c) {
   const payload = { user_id: user.id, title: c.title, messages: c.messages, updated_at: new Date().toISOString() };
@@ -118,36 +148,82 @@ async function persistChat(c) {
   if (result.error) { toast("Sauvegarde impossible : " + result.error.message); return false; }
   const oldId = c.id; c.id = result.data.id;
   if (oldId !== c.id) activeId = c.id;
-  chats = [c, ...chats.filter(x => x.id !== c.id && x.id !== oldId)];
-  renderHistory(); return true;
+  chats = [c, ...chats.filter(x => x.id !== c.id && x.id !== oldId)]; renderHistory(); return true;
+}
+function formatSize(bytes) { return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} Ko` : `${(bytes / (1024 * 1024)).toFixed(1)} Mo`; }
+function renderSelectedFiles() {
+  const tray = $("fileTray"); tray.replaceChildren();
+  selectedFiles.forEach((file, index) => {
+    const chip = document.createElement("div"); chip.className = "file-chip";
+    const label = document.createElement("span"); label.textContent = `${file.type.startsWith("image/") ? "▧" : file.type.startsWith("video/") ? "▶" : "▤"} ${file.name} · ${formatSize(file.size)}`;
+    const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "×"; remove.setAttribute("aria-label", "Retirer le fichier"); remove.onclick = () => { selectedFiles.splice(index, 1); renderSelectedFiles(); };
+    chip.append(label, remove); tray.append(chip);
+  });
+  tray.classList.toggle("hidden", selectedFiles.length === 0);
+}
+function clearSelectedFiles() { selectedFiles = []; $("fileInput").value = ""; renderSelectedFiles(); }
+$("fileInput").addEventListener("change", e => {
+  const incoming = [...e.target.files];
+  for (const file of incoming) {
+    if (!allowedTypes.has(file.type)) { toast(`Format non accepté : ${file.name}`); continue; }
+    if (file.size > MAX_FILE_SIZE) { toast(`${file.name} dépasse la limite de 20 Mo.`); continue; }
+    if (selectedFiles.length >= MAX_FILES) { toast(`Maximum ${MAX_FILES} fichiers par message.`); break; }
+    if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) selectedFiles.push(file);
+  }
+  renderSelectedFiles(); e.target.value = "";
+});
+async function uploadSelectedFiles(c) {
+  const saved = [];
+  for (const file of selectedFiles) {
+    const cleanName = file.name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]/g, "_").slice(-90);
+    const path = `${user.id}/${c.id}/${crypto.randomUUID()}-${cleanName}`;
+    const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+    if (error) throw new Error(`Impossible d'envoyer ${file.name} : ${error.message}`);
+    saved.push({ name: file.name, type: file.type, size: file.size, path });
+  }
+  return saved;
 }
 async function send(text) {
-  text = (text || "").trim(); if (!text || busy) return;
+  text = (text || "").trim(); if ((!text && !selectedFiles.length) || busy) return;
   let c = active();
   if (!c) {
-    c = { id: "local-" + crypto.randomUUID(), title: text.slice(0, 42), messages: [] };
+    c = { id: "local-" + crypto.randomUUID(), title: (text || selectedFiles[0]?.name || "Fichiers joints").slice(0, 42), messages: [] };
     chats.unshift(c); activeId = c.id;
   }
-  $("welcome").hidden = true; c.messages.push({ role: "user", content: text }); addMessage("user", text);
-  $("prompt").value = ""; $("prompt").style.height = "auto"; renderHistory();
-  await persistChat(c);
+  $("welcome").hidden = true;
   busy = true; $("sendBtn").classList.add("hidden"); $("stopBtn").classList.remove("hidden");
-  const waiting = addMessage("assistant", "NOVA réfléchit…");
-  controller = new AbortController();
+  let waiting = addMessage("assistant", "Préparation de ton message…");
   try {
+    if (c.id.startsWith("local-")) {
+      const created = await persistChat(c);
+      if (!created) throw new Error("La discussion n'a pas pu être créée.");
+    }
+    const attachments = selectedFiles.length ? await uploadSelectedFiles(c) : [];
+    const userText = text || (attachments.length ? "Voici les fichiers que je joins à cette discussion." : "");
+    c.messages.push({ role: "user", content: userText, attachments });
+    waiting.parentElement.parentElement.remove();
+    addMessage("user", userText, false, attachments);
+    waiting = addMessage("assistant", "NOVA réfléchit…");
+    $("prompt").value = ""; $("prompt").style.height = "auto"; clearSelectedFiles();
+    await persistChat(c);
+    const requestMessages = c.messages.map(m => ({ role: m.role, content: m.content }));
+    if (attachments.length) requestMessages[requestMessages.length - 1].content += "\n[Fichiers joints à cette discussion : " + attachments.map(a => a.name).join(", ") + ". Les fichiers sont stockés dans la conversation, mais leur contenu n'est pas transmis au modèle.]";
+    controller = new AbortController();
     const { data: sessionData } = await supabase.auth.getSession();
     const r = await fetch("/api/chat", {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session.access_token}` },
-      body: JSON.stringify({ messages: c.messages }), signal: controller.signal
+      body: JSON.stringify({ messages: requestMessages }), signal: controller.signal
     });
     const d = await r.json(); if (!r.ok) throw new Error(d.error || "Service indisponible.");
-    waiting.textContent = d.reply; c.messages.push({ role: "assistant", content: d.reply });
-    await persistChat(c);
+    const assistantMessage = { role: "assistant", content: d.reply }; c.messages.push(assistantMessage);
+    waiting.textContent = d.reply; await persistChat(c);
     const actionRow = document.createElement("div"); actionRow.className = "message-actions";
     const copy = document.createElement("button"); copy.textContent = "Copier"; copy.onclick = async () => { await navigator.clipboard.writeText(d.reply); toast("Réponse copiée"); };
-    actionRow.append(copy); waiting.after(actionRow);
+    const speak = document.createElement("button"); speak.textContent = "🔊 Écouter"; speak.onclick = () => speakText(d.reply);
+    actionRow.append(copy, speak); waiting.after(actionRow);
   } catch (err) {
-    waiting.textContent = err.name === "AbortError" ? "Génération arrêtée." : err.message;
+    if (waiting.isConnected) waiting.textContent = err.name === "AbortError" ? "Génération arrêtée." : err.message;
+    else toast(err.message);
   } finally {
     busy = false; controller = null; $("sendBtn").classList.remove("hidden"); $("stopBtn").classList.add("hidden"); $("prompt").focus();
   }
@@ -156,6 +232,7 @@ $("chatForm").addEventListener("submit", e => { e.preventDefault(); send($("prom
 $("prompt").addEventListener("input", () => { $("prompt").style.height = "auto"; $("prompt").style.height = Math.min($("prompt").scrollHeight, 150) + "px"; });
 $("prompt").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("prompt").value); } });
 document.querySelectorAll(".suggestion").forEach(b => b.addEventListener("click", () => send(b.dataset.prompt)));
+$("attachBtn").onclick = () => $("fileInput").click();
 $("newChat").onclick = newChat;
 $("menuBtn").onclick = () => $("sidebar").classList.toggle("open");
 $("stopBtn").onclick = () => controller?.abort();
@@ -170,10 +247,42 @@ $("saveProfile").onclick = async () => {
   $("avatar").textContent = display_name.charAt(0).toUpperCase(); $("largeAvatar").textContent = display_name.charAt(0).toUpperCase();
   toast("Profil mis à jour");
 };
-$("signOut").onclick = async () => { await supabase.auth.signOut(); location.reload(); };
+$("signOut").onclick = async () => { window.speechSynthesis?.cancel(); await supabase.auth.signOut(); location.reload(); };
 $("themeBtn").onclick = () => {
-  const dark = document.body.classList.toggle("dark");
-  localStorage.setItem("nova_theme", dark ? "dark" : "light");
-  $("themeBtn").textContent = dark ? "☾" : "☼";
+  const light = document.body.classList.toggle("light"); document.body.classList.toggle("dark", !light);
+  localStorage.setItem("nova_theme", light ? "light" : "dark"); $("themeBtn").textContent = light ? "☼" : "☾";
 };
-if (localStorage.getItem("nova_theme") === "dark") { document.body.classList.add("dark"); $("themeBtn").textContent = "☾"; }
+const savedTheme = localStorage.getItem("nova_theme");
+if (savedTheme === "light") { document.body.classList.add("light"); document.body.classList.remove("dark"); }
+else { document.body.classList.add("dark"); document.body.classList.remove("light"); }
+$("themeBtn").textContent = document.body.classList.contains("light") ? "☼" : "☾";
+
+// Dictée vocale : reconnaissance fournie par le navigateur (Chrome / Edge généralement).
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition(); recognition.lang = "fr-FR"; recognition.interimResults = false; recognition.continuous = false;
+  recognition.onresult = event => {
+    const transcript = event.results?.[0]?.[0]?.transcript || "";
+    const prompt = $("prompt"); prompt.value = `${prompt.value}${prompt.value ? " " : ""}${transcript}`;
+    prompt.dispatchEvent(new Event("input")); toast("Dictée ajoutée au message");
+  };
+  recognition.onerror = event => toast(event.error === "not-allowed" ? "Autorise le micro dans ton navigateur." : "La dictée vocale n'a pas fonctionné.");
+  recognition.onend = () => { recording = false; $("micBtn").classList.remove("recording"); $("micBtn").setAttribute("aria-label", "Dicter un message"); };
+  $("micBtn").onclick = () => {
+    if (recording) { recognition.stop(); return; }
+    try { recognition.start(); recording = true; $("micBtn").classList.add("recording"); $("micBtn").setAttribute("aria-label", "Arrêter la dictée"); toast("Je t'écoute…"); }
+    catch { toast("Le micro est déjà actif. Réessaie dans un instant."); }
+  };
+} else {
+  $("micBtn").onclick = () => toast("La dictée vocale est indisponible dans ce navigateur. Essaie Chrome ou Edge.");
+}
+function speakText(text) {
+  if (!window.speechSynthesis) return toast("La lecture vocale n'est pas disponible dans ce navigateur.");
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text); utterance.lang = "fr-FR"; utterance.rate = 1; utterance.pitch = 1;
+  window.speechSynthesis.speak(utterance);
+}
+document.addEventListener("keydown", event => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); newChat(); }
+  if (event.key === "Escape") { $("profileModal").classList.add("hidden"); if (recording) recognition?.stop(); }
+});
